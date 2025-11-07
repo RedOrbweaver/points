@@ -8,9 +8,9 @@ class OrbitCamera
 private:
 
 
-	GLfloat distance;
-	GLfloat theta;
-	GLfloat phi;
+	GLfloat distance = 100;
+	GLfloat theta = 0;
+	GLfloat phi = 0;
 
     GLfloat fov;
     GLfloat near_plane;

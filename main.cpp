@@ -1,18 +1,45 @@
 #include "hmain.hpp"
 
-struct Point
-{
-    float x, y, z;
-};
-std::vector<Point> points;
+using std::shared_ptr;
+using std::vector;
+
+const char* POPUP_LOAD_FAILED = "Failed to load file";
+const char* POPUP_LOADING = "Loading";
+
+
 GLFWwindow* window;
-std::shared_ptr<OrbitCamera> camera;
+shared_ptr<OrbitCamera> camera;
 int display_w, display_h; 
-std::shared_ptr<PointProcessor> current_points = nullptr;
+shared_ptr<PointProcessor> current_points = nullptr;
+shared_ptr<PointProcessor> loading_points = nullptr;
+vector<shared_ptr<PointProcessor>> open_points;
+bool must_update_vbos = false;
+
+vector<vec3<float>> section_colors = {vec3<float>{255, 0, 0}, vec3<float>{0, 255, 0}, vec3<float>{0, 0, 255}};
+vector<float> sections = {-1, 1.5, 100000};
+
+bool IsLoading()
+{
+    return loading_points != nullptr;
+}
+bool IsMouseOverGUI()
+{
+    ImGuiIO& io = ImGui::GetIO();
+    return io.WantCaptureMouse;
+}
 
 void HandleMouseScroll(GLFWwindow* window, double xoffset, double yoffset)
 {
+    if(IsMouseOverGUI())
+        return;
     camera->AddDistance(yoffset);
+}
+
+void SetCurrentPoints(shared_ptr<PointProcessor> points)
+{
+    current_points = points;
+    must_update_vbos = true;
+    camera->SetDistance(points->GetFurthestDistanceFromZero() * 2.0f);
 }
 
 void Render3D()
@@ -34,14 +61,38 @@ void Render3D()
     // auto projection = camera->getProjectionViewMatrix();
     // glLoadMatrixd((GLdouble*)&projection[0]);
 
-    glBegin(GL_POINTS);
+    static GLuint point_buffer = 0;
+
+    if(point_buffer != 0)
     {
-        for(size_t i = 0; i < points.size(); i++)
+        current_points->Lock();
+        vector<size_t> indices = current_points->GetSectionIndices();
+        current_points->Unlock();
+        glBindBuffer(GL_ARRAY_BUFFER, point_buffer);
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glVertexPointer(3, GL_FLOAT, 0, NULL);
+        size_t pos = 0;
+        for(size_t i = 0; i < indices.size(); i++)
         {
-            glVertex3d(points[i].x, points[i].y, points[i].z);
+            auto color = section_colors[i];
+            glColor3f(color.x, color.y, color.z);
+            glDrawArrays(GL_POINTS, pos, indices[i]);
+            pos = indices[i];
         }
     }
-    glEnd();
+    if(must_update_vbos && current_points != nullptr)
+    {
+        std::vector<vec3<float>> points;
+        current_points->GetPointsSorted(&points);
+        if(point_buffer != 0)
+        {
+            glDeleteBuffers(1, &point_buffer);
+        }
+        glGenBuffers(1, &point_buffer);
+        glBindBuffer(GL_ARRAY_BUFFER, point_buffer);
+        glBufferData(GL_ARRAY_BUFFER, points.size() * sizeof(points[0]), &points[0], GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
 
     glBegin(GL_TRIANGLES);
     {
@@ -62,21 +113,75 @@ void RenderGUI()
     ImGui::Text("%f", camera->GetPhi());
     ImGui::Text("%f", camera->GetTheta());
 
-    if(current_points != nullptr || true)
+    bool loading_finished = false;
+    if(IsLoading())
     {
-        static bool files_open = true;
-        ImGui::Begin("Files", &files_open);
+        if(!ImGui::IsPopupOpen(POPUP_LOAD_FAILED))
         {
+            loading_points->Lock();
+            if(loading_points->HasFailedToLoad())
+            {
+                ImGui::OpenPopup(POPUP_LOAD_FAILED);
+            }
+            loading_finished = loading_points->IsLoaded();
+            loading_points->Unlock();
+            if(!ImGui::IsPopupOpen(POPUP_LOADING))
+            {          
+                ImGui::OpenPopup(POPUP_LOADING);
+            }
+            if(loading_finished)
+            {
+                open_points.push_back(loading_points);
+                SetCurrentPoints(loading_points);
+                loading_points = nullptr;
+                current_points->Lock();
+                current_points->SetSections(sections);
+                current_points->Unlock();
+            }
+        }
+    }
+    if(ImGui::BeginPopupModal(POPUP_LOADING))
+    {
+        if(loading_finished)
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        else
+        {
+            ImGui::Text("Loading file:");
+            ImGui::Text("%s", loading_points->GetFilePath().c_str());
+        }
+        ImGui::EndPopup();
+    }
+    if(ImGui::BeginPopupModal(POPUP_LOAD_FAILED))
+    {
+        ImGui::Text("Failed to load file %s:", loading_points->GetFilePath().c_str());
+        //ImGui::Text("%s", loading_points->GetLoadFailureError());
+        ImGui::Separator();
+        if(ImGui::Button("OK"))
+        {
+            loading_points = nullptr;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 
+    static bool files_open = true;
+    ImGui::Begin("Files", &files_open);
+    {
+
+    }
+    ImGui::End();
+
+    if(current_points != nullptr && !IsLoading())
+    {
+        static bool tools_open = true;
+        ImGui::Begin("Tools", &tools_open);
+        {
+            
         }
         ImGui::End();
     }
-    
-    ImGui::Begin("Tools");
-    {
-        ImGui::Text("");
-    }
-    ImGui::End();
 
     ImGui::ShowDemoWindow(nullptr);
     
@@ -85,18 +190,9 @@ void RenderGUI()
     
 }
 
-void Load_Points(std::string path)
+void OpenFile(std::string path)
 {
-    FILE* file = fopen(path.c_str(), "r");
-    while(true)
-    {
-        float x, y, z;
-        int is_at_end = fscanf(file, "%f%f%f", &x, &y, &z);
-        if(is_at_end == EOF)
-            break;
-        points.push_back({x, y, z});
-    }
-    fclose(file);
+    loading_points = std::make_shared<PointProcessor>(path);
 }
 
 static void glfw_error_callback(int error, const char* description)
@@ -105,7 +201,7 @@ static void glfw_error_callback(int error, const char* description)
 }
 
 // Main code
-int main(int, char**)
+int main(int argc, char** argv)
 {
 
     glfwSetErrorCallback(glfw_error_callback);
@@ -148,6 +244,7 @@ int main(int, char**)
         return 1;
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
+    glewInit();
 
     glfwSetScrollCallback(window, HandleMouseScroll);
 
@@ -174,13 +271,11 @@ int main(int, char**)
 #endif
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    Load_Points("./test_data/data_1.txt");
+    OpenFile("./test_data/data_1.txt");
 
     camera = std::make_shared<OrbitCamera>(60.0f, 0, 100, 16.0/9.0);
     camera->SetDistance(20);    
     
-
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -198,7 +293,7 @@ int main(int, char**)
         }
 
         
-        if(io.MouseDown[0])
+        if(io.MouseDown[0] && !IsMouseOverGUI())
         {
             camera->Rotate(io.MouseDelta.x * 0.05f, io.MouseDelta.y * 0.05f);
         }
