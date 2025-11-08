@@ -129,7 +129,7 @@ void RenderToolsWindow()
         ImGui::Text("File size: %s", BytesToReadableString(cp->GetFileSize()).c_str());
         ImGui::SameLine();
         ImGui::Text("Memory used: %s", BytesToReadableString(cp->GetMemoryUsage()).c_str());
-        ImGui::Text("Points: %u", cp->GetNPoints());
+        ImGui::Text("Points: %lu", cp->GetNPoints());
         ImGui::Separator();
         static int csi = 1;
         ImGui::RadioButton("Center of points", &csi, 0);
@@ -398,7 +398,7 @@ void RenderGUI()
         RenderToolsWindow();
 
     // Demo window for figuring out how ImGui works
-    ImGui::ShowDemoWindow(nullptr);
+    //ImGui::ShowDemoWindow(nullptr);
     
     ImGui::Render();
 
@@ -481,10 +481,10 @@ int main(int argc, char** argv)
 #endif
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    OpenFile("./test_data/data_1.txt");
-    OpenFile("./test_data/data_2.txt");
-    OpenFile("./test_data/data_3.txt");
-    OpenFile("./test_data/data_4.txt");
+    // OpenFile("./test_data/data_1.txt");
+    // OpenFile("./test_data/data_2.txt");
+    // OpenFile("./test_data/data_3.txt");
+    // OpenFile("./test_data/data_4.txt");
 
     //Initialize camera with sane defaults;
     camera = std::make_shared<OrbitCamera>(50.0f, 0, 10000, 16.0/9.0);
