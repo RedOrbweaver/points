@@ -2,6 +2,8 @@
 
 using std::shared_ptr;
 using std::vector;
+using std::string;
+using std::to_string;
 
 const char* POPUP_LOAD_FAILED = "Failed to load file";
 const char* POPUP_LOADING = "Loading";
@@ -23,11 +25,10 @@ bool must_update_vbos = false;
 vector<vec3<float>> section_colors = {vec3<float>{1.0, 0, 0}, vec3<float>{0, 1.0, 0}, vec3<float>{0, 0, 1.0}};
 vector<float> sections = {-1, 1.5, 100000};
 
-void OpenFile(std::string path)
+void OpenFile(string path)
 {
     loading_points.push_back(std::make_shared<PointProcessor>(path));
 }
-
 
 bool IsLoading()
 {
@@ -88,7 +89,7 @@ void Render3D()
     }
     if(must_update_vbos && current_points != nullptr)
     {
-        std::vector<vec3<float>> points;
+        vector<vec3<float>> points;
         current_points->GetPointsSorted(&points);
         if(point_buffer != 0)
         {
@@ -102,9 +103,9 @@ void Render3D()
     
 }
 
-std::string BytesToReadableString(size_t bytes)
+string BytesToReadableString(size_t bytes)
 {
-    static std::vector<std::string> prefixes = 
+    static vector<string> prefixes = 
     {
         "B", "KB", "MB", "GB", "PB", "EB"
     };
@@ -115,7 +116,7 @@ std::string BytesToReadableString(size_t bytes)
         pos++;
     }
     assert(pos < prefixes.size());
-    return std::to_string(bytes) + prefixes[pos];
+    return to_string(bytes) + prefixes[pos];
 }
 
 void RenderToolsWindow()
@@ -153,12 +154,12 @@ void RenderToolsWindow()
             ImGui::Text("(%i) points: %u", i, (indices[i] == 0) ? 0 : uint(indices[i]-section_pos));
             ImGui::SameLine();
             vec3<float> color = section_colors[i];
-            ImGui::ColorEdit3((std::string("Color##") + std::to_string(i)).c_str(), color.data);
+            ImGui::ColorEdit3((string("Color##") + to_string(i)).c_str(), color.data);
             section_colors[i] = color;
             if(sections.size() > 2)
             {
                 ImGui::SameLine();
-                if(ImGui::SmallButton((std::string("Remove##") + std::to_string(i)).c_str()))
+                if(ImGui::SmallButton((string("Remove##") + to_string(i)).c_str()))
                 {
                     to_remove = i;
                 }
@@ -170,7 +171,7 @@ void RenderToolsWindow()
                 // first element can go into the negatives up to the point with the lowest z-axis
                 float lower_limit = (i == 0) ? cp->GetBoundingBoxLow().z : 0.0f;
                 float upper_limit = cp->GetBoundingBoxHigh().z;
-                ImGui::SliderFloat((std::string("Length##") + std::to_string(i)).c_str(), &v, 
+                ImGui::SliderFloat((string("Length##") + to_string(i)).c_str(), &v, 
                     lower_limit, upper_limit);
                 if(v != sections[i])
                 {
@@ -213,19 +214,19 @@ void RenderFilesWindow()
             ImGui::Text("Loaded files:");
             if(ImGui::BeginListBox("##", ImVec2(250, 300)))
             {
-                std::vector<std::shared_ptr<PointProcessor>> to_delete;
+                vector<std::shared_ptr<PointProcessor>> to_delete;
                 static int points_selected = 0;
                 for(int i = 0; i < open_points.size(); i++)
                 {
                     auto p = open_points[i];
-                    std::string sid = p->GetFileName() + "##" + std::to_string(i);
+                    string sid = p->GetFileName() + "##" + to_string(i);
                     const bool is_selected = (points_selected == i);
                     if(ImGui::Selectable(sid.c_str(), is_selected, ImGuiSelectableFlags_AllowOverlap))
                     {
                         points_selected = i;
                     }
                     ImGui::SameLine(235);
-                    std::string bid = "X##" + std::to_string(i);
+                    string bid = "X##" + to_string(i);
                     if(ImGui::SmallButton(bid.c_str()))
                     {
                         to_delete.push_back(p);
@@ -261,7 +262,7 @@ void RenderFilesWindow()
         {
             if (ImGuiFileDialog::Instance()->IsOk()) 
             { 
-                std::string filePath = ImGuiFileDialog::Instance()->GetFilePathName();
+                string filePath = ImGuiFileDialog::Instance()->GetFilePathName();
                 bool isalreadyopen = false;
                 for(auto it : open_points)
                 {
@@ -280,15 +281,8 @@ void RenderFilesWindow()
     ImGui::End();
 }
 
-void RenderGUI()
+void RenderLoadingPopups()
 {
-    ImGui::NewFrame();
-
-    // Camera debug info:
-    // ImGui::Text("%f", camera->GetDistance());
-    // ImGui::Text("%f", camera->GetPhi());
-    // ImGui::Text("%f", camera->GetTheta());
-
     bool loading_finished = false;
     if(IsLoading())
     {
@@ -391,6 +385,18 @@ void RenderGUI()
         }
         ImGui::EndPopup();
     }
+}
+
+void RenderGUI()
+{
+    ImGui::NewFrame();
+
+    // Camera debug info:
+    // ImGui::Text("%f", camera->GetDistance());
+    // ImGui::Text("%f", camera->GetPhi());
+    // ImGui::Text("%f", camera->GetTheta());
+
+    RenderLoadingPopups();
 
     RenderFilesWindow();
 
