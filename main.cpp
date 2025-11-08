@@ -11,8 +11,9 @@ GLFWwindow* window;
 shared_ptr<OrbitCamera> camera;
 int display_w, display_h; 
 shared_ptr<PointProcessor> current_points = nullptr;
-shared_ptr<PointProcessor> loading_points = nullptr;
+vector<shared_ptr<PointProcessor>> loading_points;
 vector<shared_ptr<PointProcessor>> open_points;
+vector<shared_ptr<PointProcessor>> failed_to_load_points;
 bool must_update_vbos = false;
 
 vector<vec3<float>> section_colors = {vec3<float>{255, 0, 0}, vec3<float>{0, 255, 0}, vec3<float>{0, 0, 255}};
@@ -20,7 +21,7 @@ vector<float> sections = {-1, 1.5, 100000};
 
 bool IsLoading()
 {
-    return loading_points != nullptr;
+    return loading_points.size() > 0 || failed_to_load_points.size() > 0;
 }
 bool IsMouseOverGUI()
 {
@@ -110,25 +111,47 @@ void RenderGUI()
     {
         if(!ImGui::IsPopupOpen(POPUP_LOAD_FAILED))
         {
-            loading_points->Lock();
-            if(loading_points->HasFailedToLoad())
+            int completed = 0;
+            int failed = 0;
+            for(auto it : loading_points)
             {
-                ImGui::OpenPopup(POPUP_LOAD_FAILED);
+                it->Lock();
+                if(it->HasFailedToLoad())
+                {
+                    failed++;
+                    completed++;
+                }
+                else if(it->IsLoaded())
+                {
+                    completed++;
+                }
+                it->Unlock();
             }
-            loading_finished = loading_points->IsLoaded();
-            loading_points->Unlock();
             if(!ImGui::IsPopupOpen(POPUP_LOADING))
             {          
                 ImGui::OpenPopup(POPUP_LOADING);
             }
-            if(loading_finished)
+            if(completed == loading_points.size())
             {
-                open_points.push_back(loading_points);
-                SetCurrentPoints(loading_points);
-                loading_points = nullptr;
-                current_points->Lock();
-                current_points->SetSections(sections);
-                current_points->Unlock();
+                for(auto it : loading_points)
+                {
+                    if(!it->HasFailedToLoad())
+                    {                
+                        open_points.push_back(it);
+                        if(it == loading_points[0])
+                            SetCurrentPoints(it);
+                        it->Lock();
+                        it->SetSections(sections);
+                        it->Unlock();
+                    }
+                    else
+                    {
+                        failed_to_load_points.push_back(it);
+                    }
+                }
+                loading_finished = true;
+                if(failed > 0)
+                    ImGui::OpenPopup(POPUP_LOAD_FAILED);
             }
         }
     }
@@ -140,19 +163,43 @@ void RenderGUI()
         }
         else
         {
-            ImGui::Text("Loading file:");
-            ImGui::Text("%s", loading_points->GetFilePath().c_str());
+            if(loading_points.size() == 1)
+                ImGui::Text("Loading file: %s", loading_points[0]->GetFileName());
+            else
+            {
+                ImGui::Text("Loading %i files", (int)loading_points.size());
+            }
+            float loading_state = 0.0f;
+            for(auto it : loading_points)
+            {
+                it->Lock();
+                loading_state += it->LoadingState();
+                it->Unlock();
+            }
+            loading_state /= loading_points.size();
+            ImGui::ProgressBar(loading_state, ImVec2(0.0f, 0.0f));
         }
         ImGui::EndPopup();
     }
     if(ImGui::BeginPopupModal(POPUP_LOAD_FAILED))
     {
-        ImGui::Text("Failed to load file %s:", loading_points->GetFilePath().c_str());
+        assert(failed_to_load_points.size() > 0);
+        if(failed_to_load_points.size() == 1)        
+            ImGui::Text("Loading failed");
+        else if(failed_to_load_points.size() < loading_points.size())
+            ImGui::Text("(%i/%i) files failed to load",  (int)failed_to_load_points.size(), (int)loading_points.size());
+        else
+            ImGui::Text("All files failed to load");
+        for(auto it : failed_to_load_points)
+        {
+            ImGui::Text("Failed to load file %s:", it->GetFilePath().c_str());
+        }
         //ImGui::Text("%s", loading_points->GetLoadFailureError());
         ImGui::Separator();
         if(ImGui::Button("OK"))
         {
-            loading_points = nullptr;
+            loading_points.clear();
+            failed_to_load_points.clear();
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
@@ -161,7 +208,7 @@ void RenderGUI()
     static bool files_open = true;
     ImGui::Begin("Files", &files_open);
     {
-
+        
     }
     ImGui::End();
 
@@ -184,7 +231,7 @@ void RenderGUI()
 
 void OpenFile(std::string path)
 {
-    loading_points = std::make_shared<PointProcessor>(path);
+    loading_points.push_back(std::make_shared<PointProcessor>(path));
 }
 
 static void glfw_error_callback(int error, const char* description)
@@ -267,6 +314,14 @@ int main(int argc, char** argv)
 
     camera = std::make_shared<OrbitCamera>(60.0f, 0, 100, 16.0/9.0);
     camera->SetDistance(20);    
+
+    if(argc > 1)
+    {
+        for(int i = 1; i < argc; i++)
+        {
+            OpenFile(argv[i]);
+        }
+    }
     
 
     while (!glfwWindowShouldClose(window))

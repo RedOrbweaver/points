@@ -1,3 +1,6 @@
 [submodule "RedCppLib"]
 	path = RedCppLib
 	url = https://github.com/RedOrbweaver/RedCppLib
+[submodule "ImGuiFileDialog"]
+	path = ImGuiFileDialog
+	url = https://github.com/aiekick/ImGuiFileDialog

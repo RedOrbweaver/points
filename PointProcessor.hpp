@@ -5,6 +5,12 @@
 class PointProcessor
 {
     protected:
+    // Assuming most of the loading time will be spent fetching data from disk and parsing it
+    constexpr static const float WEIGHT_PARSE = 0.7f;
+    constexpr static const float WEIGHT_COMPUTE = 0.1f;
+    // Assuming 7 characters per line + 2 spaces
+    constexpr static const int ASSUMED_BYTES_PER_LINE = 23;
+
     std::string file_name;
     std::string path;
     size_t file_size;
@@ -19,6 +25,8 @@ class PointProcessor
     std::condition_variable process_notify;
     bool is_loaded = false;
     bool must_update = true;
+    float loading_state_parse = 0.0f;
+    float loading_state_compute[3] = {0.0f, 0.0f, 0.0f};
     bool exit = false;
     bool failed_to_load = false;
     std::string file_load_error;
@@ -40,6 +48,7 @@ class PointProcessor
             SetLoadError("Failed to open file!");
             return false;
         }
+        file_size = std::filesystem::file_size(path);
         while(true)
         {
             float x, y, z;
@@ -59,6 +68,7 @@ class PointProcessor
                 fclose(file);
                 return false;
             }
+            loading_state_parse += float(ASSUMED_BYTES_PER_LINE)/float(file_size);
             points.push_back({x, y, z});
         }
         fclose(file);
@@ -67,7 +77,6 @@ class PointProcessor
             SetLoadError("No data found in file");
             return false;
         }
-        file_size = std::filesystem::file_size(path);
         // find center and the furthest point from (0, 0, 0)
         furthest_point_zero = 0.0f;
         center = vec3<float>{0, 0, 0};
@@ -78,6 +87,7 @@ class PointProcessor
             float l = p.length();
             if(l > furthest_point_zero)
                 furthest_point_zero =  l;
+            loading_state_compute[0] = float(i)/float(points.size());
         }
         // find greatest distance from center
         furthest_point_center = 0.0f;
@@ -87,9 +97,11 @@ class PointProcessor
             float l = p.length();
             if(l > furthest_point_center)
                 furthest_point_center = l;
+            loading_state_compute[1] = float(i)/float(points.size());
         }
         // sort by the Z axis, ascending
-        std::sort(points.begin(), points.end(), [](vec3<float> l, vec3<float> r) {return l.z < r.z;});
+        
+        std::sort(points.begin(), points.end(), [&](vec3<float> l, vec3<float> r) {loading_state_compute[2] += 0.5f * 1.0f/float(points.size()); return l.z < r.z;});
         memory_used = sizeof(points[0]) * points.size();
         return true;
     }
@@ -154,6 +166,18 @@ class PointProcessor
     bool HasFailedToLoad()
     {
         return failed_to_load;
+    }
+    // Not guaranteed to return a valid value, thread safety would be too expensive and glitches are unlikely and acceptable
+    // Does not indicate whether the load has been completed
+    float LoadingState()
+    {
+        float v = 0.0f;
+        v += std::min(1.0f, loading_state_parse) * WEIGHT_PARSE;
+        for(int i = 0; i < ArraySize(loading_state_compute); i++)
+        {
+            v += std::min(1.0f, loading_state_compute[i]) * WEIGHT_COMPUTE;
+        }
+        return v;
     }
     std::string GetLoadFailureError()
     {
