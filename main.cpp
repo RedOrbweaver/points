@@ -11,6 +11,7 @@ const char* POPUP_OPEN_FILE = "Open file";
 constexpr float CAMERA_MOVEMENT_RATE_X = 0.01f;
 constexpr float CAMERA_MOVEMENT_RATE_Y = 0.01f;
 constexpr float ZOOM_RATE = 2;
+constexpr float SLICE_QUAD_SIZE = 20;
 
 
 GLFWwindow* window;
@@ -21,9 +22,100 @@ vector<shared_ptr<PointProcessor>> loading_points;
 vector<shared_ptr<PointProcessor>> open_points;
 vector<shared_ptr<PointProcessor>> failed_to_load_points;
 bool must_update_vbos = false;
+bool slice_quads_enabled = false;
+float slice_quads_opacity = 0.1f;
+
 
 vector<vec3<float>> section_colors = {vec3<float>{1.0, 0, 0}, vec3<float>{0, 1.0, 0}, vec3<float>{0, 0, 1.0}};
 vector<float> sections = {-1, 1.5, 100000};
+
+
+void SetCurrentPoints(shared_ptr<PointProcessor> points)
+{
+    current_points = points;
+    must_update_vbos = true;
+    camera->SetDistance(points->GetFurthestDistanceFromZero() * 2.0f);
+}
+
+void Render3D()
+{
+    glClearColor(0.05, 0.05, 0.05, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    // Compute view matrices
+    auto view = camera->GetModelViewMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glLoadMatrixf(&view[0].x);
+    auto perspective = camera->GetProjectionMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(&perspective[0].x);        
+
+    static GLuint point_buffer = 0;
+
+    if(current_points != nullptr)
+    {
+        // Upload data to the GPU
+        if(must_update_vbos)
+        {
+            vector<vec3<float>> points;
+            current_points->GetPointsSorted(&points);
+            if(point_buffer != 0)
+            {
+                glDeleteBuffers(1, &point_buffer);
+            }
+            glGenBuffers(1, &point_buffer);
+            glBindBuffer(GL_ARRAY_BUFFER, point_buffer);
+            glBufferData(GL_ARRAY_BUFFER, points.size() * sizeof(points[0]), &points[0], GL_STATIC_DRAW);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
+
+        // Render points
+        if(point_buffer != 0)
+        {
+            current_points->Lock();
+            vector<size_t> indices = current_points->GetSectionIndices();
+            current_points->Unlock();
+            glBindBuffer(GL_ARRAY_BUFFER, point_buffer);
+            glEnableClientState(GL_VERTEX_ARRAY);
+            glVertexPointer(3, GL_FLOAT, 0, NULL);
+            size_t pos = 0;
+            for(size_t i = 0; i < indices.size(); i++)
+            {
+                auto color = section_colors[i];
+                glColor3f(color.x, color.y, color.z);
+                glDrawArrays(GL_POINTS, pos, indices[i]);
+                pos = indices[i];
+            }
+        }
+
+        // Render section slices
+        if(slice_quads_enabled)
+        {
+            float pos = 0.0f;
+            for(int i = 0; i < sections.size(); i++)
+            {
+                pos += sections[i];
+                vec3<float> p0 = {-SLICE_QUAD_SIZE, -SLICE_QUAD_SIZE, pos};
+                vec3<float> p1 = {SLICE_QUAD_SIZE, -SLICE_QUAD_SIZE, pos};
+                vec3<float> p2 = {SLICE_QUAD_SIZE, SLICE_QUAD_SIZE, pos};
+                vec3<float> p3 = {-SLICE_QUAD_SIZE, SLICE_QUAD_SIZE, pos};
+                auto color = section_colors[i];
+                glBegin(GL_TRIANGLES);
+                {
+                    glColor4f(color.x, color.y, color.z, slice_quads_opacity);
+                    glVertex3f(p0.x, p0.y, p0.z);
+                    glVertex3f(p1.x, p1.y, p1.z);
+                    glVertex3f(p2.x, p2.y, p2.z);
+
+                    glVertex3f(p2.x, p2.y, p2.z);
+                    glVertex3f(p3.x, p3.y, p3.z);
+                    glVertex3f(p0.x, p0.y, p0.z);
+                }
+                glEnd();
+            }
+        }
+    }    
+}
 
 void OpenFile(string path)
 {
@@ -45,62 +137,6 @@ void HandleMouseScroll(GLFWwindow* window, double xoffset, double yoffset)
     if(IsMouseOverGUI())
         return;
     camera->AddDistance(yoffset * ZOOM_RATE);
-}
-
-void SetCurrentPoints(shared_ptr<PointProcessor> points)
-{
-    current_points = points;
-    must_update_vbos = true;
-    camera->SetDistance(points->GetFurthestDistanceFromZero() * 2.0f);
-}
-
-void Render3D()
-{
-    glClearColor(0.05, 0.05, 0.05, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    
-    auto view = camera->GetModelViewMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf(&view[0].x);
-    
-    
-    auto perspective = camera->GetProjectionMatrix();
-    glMatrixMode(GL_PROJECTION);
-    glLoadMatrixf(&perspective[0].x);        
-
-    static GLuint point_buffer = 0;
-
-    if(point_buffer != 0)
-    {
-        current_points->Lock();
-        vector<size_t> indices = current_points->GetSectionIndices();
-        current_points->Unlock();
-        glBindBuffer(GL_ARRAY_BUFFER, point_buffer);
-        glEnableClientState(GL_VERTEX_ARRAY);
-        glVertexPointer(3, GL_FLOAT, 0, NULL);
-        size_t pos = 0;
-        for(size_t i = 0; i < indices.size(); i++)
-        {
-            auto color = section_colors[i];
-            glColor3f(color.x, color.y, color.z);
-            glDrawArrays(GL_POINTS, pos, indices[i]);
-            pos = indices[i];
-        }
-    }
-    if(must_update_vbos && current_points != nullptr)
-    {
-        vector<vec3<float>> points;
-        current_points->GetPointsSorted(&points);
-        if(point_buffer != 0)
-        {
-            glDeleteBuffers(1, &point_buffer);
-        }
-        glGenBuffers(1, &point_buffer);
-        glBindBuffer(GL_ARRAY_BUFFER, point_buffer);
-        glBufferData(GL_ARRAY_BUFFER, points.size() * sizeof(points[0]), &points[0], GL_STATIC_DRAW);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-    }
-    
 }
 
 string BytesToReadableString(size_t bytes)
@@ -144,6 +180,9 @@ void RenderToolsWindow()
             camera->SetCenter(cp->GetCenterAverage());
         else if(csi == 2)
             camera->SetCenter({0.0f, 0.0f, 0.0f});
+        ImGui::Separator();
+        ImGui::Checkbox("Separators", &slice_quads_enabled);
+        ImGui::SliderFloat("Separator opacity", &slice_quads_opacity, 0.0f, 1.0f);
         ImGui::Separator();
         ImGui::Text("Sections:");
         size_t section_pos = 0;
@@ -463,6 +502,9 @@ int main(int argc, char** argv)
     glewInit();
 
     glfwSetScrollCallback(window, HandleMouseScroll);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
