@@ -123,12 +123,14 @@ class PointProcessor
                     if(p.z > pos)
                     {
                         section_indices[current_section] = i;
-                        pos += sections[current_section];
                         current_section++;
                         if(current_section == sections.size())
                             break;
+                        pos += sections[current_section];
                     }
                 }
+                if(current_section != sections.size())
+                    section_indices[current_section] = points.size();
                 this->section_indices = section_indices;
             }
             Lock();

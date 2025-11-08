@@ -93,14 +93,6 @@ void Render3D()
         glBufferData(GL_ARRAY_BUFFER, points.size() * sizeof(points[0]), &points[0], GL_STATIC_DRAW);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
-
-    glBegin(GL_TRIANGLES);
-    {
-        glVertex3d(-10, 0, 0);
-        glVertex3d(10, 0, 0);
-        glVertex3d(0, 10, 5);
-    }
-    glEnd();
     
 }
 
@@ -271,7 +263,7 @@ int main(int argc, char** argv)
 #endif
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    OpenFile("./test_data/data_1.txt");
+    OpenFile("./test_data/data_5.txt");
 
     camera = std::make_shared<OrbitCamera>(60.0f, 0, 100, 16.0/9.0);
     camera->SetDistance(20);    
