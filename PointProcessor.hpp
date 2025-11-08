@@ -30,9 +30,14 @@ class PointProcessor
     bool exit = false;
     bool failed_to_load = false;
     std::string file_load_error;
-    float furthest_point_center;
-    float furthest_point_zero;
-    vec3<float> center;
+    float furthest_point_center_distance;
+    float furthest_point_zero_distance;
+    // average of all points
+    vec3<float> center_average;
+    // center of the bounding box of the points
+    vec3<float> center_bounding;
+    vec3<float> bounding_box_low;
+    vec3<float> bounding_box_high;
     void SetLoadError(std::string text)
     {
         Lock();
@@ -77,28 +82,42 @@ class PointProcessor
             SetLoadError("No data found in file");
             return false;
         }
+        bounding_box_high = points[0];
+        bounding_box_low = points[0];
         // find center and the furthest point from (0, 0, 0)
-        furthest_point_zero = 0.0f;
-        center = vec3<float>{0, 0, 0};
+        // also find the bounding box
+        furthest_point_zero_distance = 0.0f;
+        center_average = vec3<float>{0, 0, 0};
         for(int i = 0; i < points.size(); i++)
         {
             auto& p = points[i];
-            center += p/float(points.size());
+            center_average += p/float(points.size());
             float l = p.length();
-            if(l > furthest_point_zero)
-                furthest_point_zero =  l;
+            if(l > furthest_point_zero_distance)
+                furthest_point_zero_distance =  l;
+            
+            bounding_box_high = p.max(bounding_box_high);
+            bounding_box_low = p.min(bounding_box_low);
+
             loading_state_compute[0] = float(i)/float(points.size());
         }
+        center_bounding = (bounding_box_low + bounding_box_high) / 2.0f;
+
         // find greatest distance from center
-        furthest_point_center = 0.0f;
+        vec3<float> furthest_point_center;
+        furthest_point_center_distance = 0.0f;
         for(int i = 0; i < points.size(); i++)
         {
-            auto p = points[i] - center;
+            auto p = points[i] - center_average;
             float l = p.length();
-            if(l > furthest_point_center)
-                furthest_point_center = l;
+            if(l > furthest_point_center_distance)
+            {
+                furthest_point_center_distance = l;
+                furthest_point_center = p;
+            }
             loading_state_compute[1] = float(i)/float(points.size());
         }
+
         // sort by the Z axis, ascending
         
         std::sort(points.begin(), points.end(), [&](vec3<float> l, vec3<float> r) {loading_state_compute[2] += 0.5f * 1.0f/float(points.size()); return l.z < r.z;});
@@ -206,15 +225,27 @@ class PointProcessor
     }
     float GetFurthestDistanceFromZero()
     {
-        return furthest_point_zero;
+        return furthest_point_zero_distance;
     }
     float GetFurthestDistanceFromCenter()
     {
-        return furthest_point_center;
+        return furthest_point_center_distance;
     }
-    vec3<float> GetCenter()
+    vec3<float> GetCenterAverage()
     {
-        return center;
+        return center_average;
+    }
+    vec3<float> GetCenterBounding()
+    {
+        return center_bounding;
+    }
+    vec3<float> GetBoundingBoxLow()
+    {
+        return bounding_box_low;
+    }
+    vec3<float> GetBoundingBoxHigh()
+    {
+        return bounding_box_high;
     }
     // Lock() required
     void SetSections(std::vector<float>& sections)

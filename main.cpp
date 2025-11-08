@@ -20,7 +20,7 @@ vector<shared_ptr<PointProcessor>> open_points;
 vector<shared_ptr<PointProcessor>> failed_to_load_points;
 bool must_update_vbos = false;
 
-vector<vec3<float>> section_colors = {vec3<float>{255, 0, 0}, vec3<float>{0, 255, 0}, vec3<float>{0, 0, 255}};
+vector<vec3<float>> section_colors = {vec3<float>{1.0, 0, 0}, vec3<float>{0, 1.0, 0}, vec3<float>{0, 0, 1.0}};
 vector<float> sections = {-1, 1.5, 100000};
 
 void OpenFile(std::string path)
@@ -55,7 +55,7 @@ void SetCurrentPoints(shared_ptr<PointProcessor> points)
 
 void Render3D()
 {
-    glClearColor(0.1, 0, 0, 1.0f);
+    glClearColor(0.05, 0.05, 0.05, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     
     auto view = camera->GetModelViewMatrix();
@@ -66,11 +66,6 @@ void Render3D()
     auto perspective = camera->GetProjectionMatrix();
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(&perspective[0].x);        
-
-
-    // glMatrixMode(GL_PROJECTION);
-    // auto projection = camera->getProjectionViewMatrix();
-    // glLoadMatrixd((GLdouble*)&projection[0]);
 
     static GLuint point_buffer = 0;
 
@@ -107,11 +102,99 @@ void Render3D()
     
 }
 
+std::string BytesToReadableString(size_t bytes)
+{
+    static std::vector<std::string> prefixes = 
+    {
+        "B", "KB", "MB", "GB", "PB", "EB"
+    };
+    int pos = 0;
+    while(bytes > 10000)
+    {
+        bytes /= 1000;
+        pos++;
+    }
+    assert(pos < prefixes.size());
+    return std::to_string(bytes) + prefixes[pos];
+}
+
 void RenderToolsWindow()
 {
-    if(ImGui::Begin("Tools", ))
-    {
+    // for brevity
+    auto cp = current_points;
 
+    if(ImGui::Begin("Tools", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::Text("Info:");
+        ImGui::Text("File size: %s", BytesToReadableString(cp->GetFileSize()).c_str());
+        ImGui::SameLine();
+        ImGui::Text("Memory used: %s", BytesToReadableString(cp->GetMemoryUsage()).c_str());
+        ImGui::Text("Points: %u", cp->GetNPoints());
+        ImGui::Separator();
+        static int csi = 1;
+        ImGui::RadioButton("Center of points", &csi, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("Average", &csi, 1);
+        ImGui::SameLine();
+        ImGui::RadioButton("Zero", &csi, 2);
+        if(csi == 0)
+            camera->SetCenter(cp->GetCenterBounding());
+        else if(csi == 1)
+            camera->SetCenter(cp->GetCenterAverage());
+        else if(csi == 2)
+            camera->SetCenter({0.0f, 0.0f, 0.0f});
+        ImGui::Separator();
+        ImGui::Text("Sections:");
+        size_t section_pos = 0;
+        auto indices = cp->GetSectionIndices();
+        int to_remove = -1;
+        for(int i = 0; i < indices.size(); i++)
+        {
+            ImGui::Text("(%i) points: %u", i, (indices[i] == 0) ? 0 : uint(indices[i]-section_pos));
+            ImGui::SameLine();
+            vec3<float> color = section_colors[i];
+            ImGui::ColorEdit3((std::string("Color##") + std::to_string(i)).c_str(), color.data);
+            section_colors[i] = color;
+            if(sections.size() > 2)
+            {
+                ImGui::SameLine();
+                if(ImGui::SmallButton((std::string("Remove##") + std::to_string(i)).c_str()))
+                {
+                    to_remove = i;
+                }
+            }
+            // last section goes out to infinity
+            if(i != indices.size()-1)
+            {
+                float v = sections[i];
+                // first element can go into the negatives up to the point with the lowest z-axis
+                float lower_limit = (i == 0) ? cp->GetBoundingBoxLow().z : 0.0f;
+                float upper_limit = cp->GetBoundingBoxHigh().z;
+                ImGui::SliderFloat((std::string("Length##") + std::to_string(i)).c_str(), &v, 
+                    lower_limit, upper_limit);
+                if(v != sections[i])
+                {
+                    sections[i] = v;
+                    cp->SetSections(sections);
+                }
+            }
+            section_pos = indices[i];
+        }
+        if(to_remove > 0)
+        {
+            sections.erase(sections.begin() + to_remove);
+            section_colors.erase(section_colors.begin() + to_remove);
+            // last section goes out to infity
+            sections[sections.size()-1] = 10000.0f;
+            cp->SetSections(sections);
+        }
+        if(ImGui::Button("Add"))
+        {
+            sections[sections.size()-1] = sections[sections.size()-2] * 2;
+            sections.push_back(10000.0f);
+            section_colors.push_back({1.0f, 1.0f, 1.0f});
+            cp->SetSections(sections);
+        }
     }
     ImGui::End();
 }
@@ -141,7 +224,7 @@ void RenderFilesWindow()
                     {
                         points_selected = i;
                     }
-                    ImGui::SameLine(243);
+                    ImGui::SameLine(235);
                     std::string bid = "X##" + std::to_string(i);
                     if(ImGui::SmallButton(bid.c_str()))
                     {
@@ -366,7 +449,7 @@ int main(int argc, char** argv)
 
     // Create window with graphics context
     float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor()); // Valid on GLFW 3.3+ only
-    window = glfwCreateWindow((int)(1280 * main_scale), (int)(800 * main_scale), "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr);
+    window = glfwCreateWindow((int)(1500 * main_scale), (int)(1000 * main_scale), "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr);
     if (window == nullptr)
         return 1;
     glfwMakeContextCurrent(window);
