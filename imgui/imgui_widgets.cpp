@@ -32,6 +32,8 @@ Index of this file:
 
 */
 
+#define STB_TEXT_HAS_SELECTION(s)   ((s)->select_start != (s)->select_end)
+
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 #define _CRT_SECURE_NO_WARNINGS
 #endif

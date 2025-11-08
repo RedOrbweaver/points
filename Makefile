@@ -12,7 +12,7 @@ IMGUI_DIR = ./imgui
 SOURCES = main.cpp
 SOURCES += $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_demo.cpp $(IMGUI_DIR)/imgui_draw.cpp $(IMGUI_DIR)/imgui_tables.cpp $(IMGUI_DIR)/imgui_widgets.cpp
 SOURCES += $(IMGUI_DIR)/backends/imgui_impl_glfw.cpp $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
-SOURCES += ImGuiFileDialog/ImGuiFileDialog.cpp
+SOURCES += ./ImGuiFileDialog/ImGuiFileDialog.cpp
 OBJS = $(addsuffix .o, $(basename $(notdir $(SOURCES))))
 UNAME_S := $(shell uname -s)
 LINUX_GL_LIBS = -lGL
@@ -41,6 +41,7 @@ ifeq ($(UNAME_S), Linux) #LINUX
 	LIBS += $(LINUX_GL_LIBS) `pkg-config --static --libs glfw3 glew`
 
 	CXXFLAGS += `pkg-config --cflags glfw3`
+	CXXFLAGS += -Wno-sign-compare
 	CFLAGS = $(CXXFLAGS)
 endif
 
@@ -52,6 +53,7 @@ ifeq ($(UNAME_S), Darwin) #APPLE
 	LIBS += -lglfw
 
 	CXXFLAGS += -I/usr/local/include -I/opt/local/include -I/opt/homebrew/include
+	CXXFLAGS += -Wno-sign-compare
 	CFLAGS = $(CXXFLAGS)
 endif
 
@@ -60,6 +62,7 @@ ifeq ($(OS), Windows_NT)
 	LIBS += -lglfw3 -lgdi32 -lopengl32 -limm32 -lglew
 
 	CXXFLAGS += `pkg-config --cflags glfw3`
+	CXXFLAGS += -Wno-sign-compare
 	CFLAGS = $(CXXFLAGS)
 endif
 
@@ -75,6 +78,9 @@ endif
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 %.o:$(IMGUI_DIR)/backends/%.cpp
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+%.o:./ImGuiFileDialog/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 all: clean $(EXE)

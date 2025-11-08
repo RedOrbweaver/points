@@ -8,68 +8,82 @@ class OrbitCamera
 private:
 
 
-	GLfloat distance = 100;
-	GLfloat theta = 0;
-	GLfloat phi = 0;
+	float distance = 100;
+	float theta = 0;
+	float phi = 0;
 
-    GLfloat fov;
-    GLfloat near_plane;
-    GLfloat far_plane;
-    GLfloat aspect_ratio;
+    float fov;
+    float near_plane;
+    float far_plane;
+    float aspect_ratio;
+
+    glm::vec3 center;
 public:
 
-    GLfloat GetDistance()
+    float GetDistance()
     {
         return distance;
     }
-    GLfloat GetPhi()
+    float GetPhi()
     {
         return phi;
     }
-    GLfloat GetTheta()
+    float GetTheta()
     {
         return theta;
     }
 
-    void SetDistance(GLfloat value)
+    void SetDistance(float value)
     {
         distance = value;
     }
-    void GetPhi(GLfloat value)
+    void GetPhi(float value)
     {
         phi = value;
     }
-    void GetTheta(GLfloat value)
+    void GetTheta(float value)
     {
         theta = value;
     }
-    void SetFOV(GLfloat value)
+    void SetFOV(float value)
     {
         fov = value;
     }
-    void SetNearPlane(GLfloat value)
+    void SetNearPlane(float value)
     {
         near_plane = value;
     }
-    void SetFarPlane(GLfloat value)
+    void SetFarPlane(float value)
     {
         far_plane = value;
     }
-    void SetAspectRatio(GLfloat value)
+    void SetAspectRatio(float value)
     {
         aspect_ratio = value;
     }
 
-	void AddDistance(GLfloat deltaRadius)
+	void AddDistance(float deltaRadius)
     {
         distance += deltaRadius;
-        assert(distance > 0);
+        if(distance < 1.0f)
+            distance = 1.0f;
     }
 
-	void Rotate(GLfloat theta, GLfloat phi)
+    void SetCenter(vec3<float> center)
+    {
+        this->center.x = center.x;
+        this->center.y = center.y;
+        this->center.z = center.z;
+    }
+
+	void Rotate(float theta, float phi)
     {
         this->theta += theta;
         this->phi += phi;
+        if(this->phi > M_PI_4)
+            this->phi = M_PI_4;
+        else if(this->phi < -M_PI_4)
+            this->phi = -M_PI_4;
     }   
 
 	glm::mat4 GetModelViewMatrix()
@@ -80,16 +94,20 @@ public:
             (distance * -glm::sin(phi)),
             (distance * glm::cos(theta) * glm::cos(phi))
         );
-        return glm::lookAt(eye, glm::vec3{0, 0, 0}, glm::vec3{0.f, 1.f, 0.f});
+        return glm::lookAt(eye, center, glm::vec3{0.0f, 1.0f, 0.0f});
     }
     glm::mat4 GetProjectionMatrix()
     {
-        return glm::perspective(M_PI/4.0, 16.0/9.0, 0.0, 1000.0);;
+        return glm::perspective(fov, aspect_ratio, near_plane, far_plane);
     }
 
-    OrbitCamera(GLfloat fov, GLfloat nearPlane, GLfloat farPlane, GLfloat aspectRatio)
+    OrbitCamera(float fov, float near_plane, float far_plane, float aspect_ratio)
     {
-        
+        center = glm::vec3(0.0f, 0.0f, 0.0f);
+        this->fov = fov;
+        this->near_plane = near_plane;
+        this->far_plane = far_plane;
+        this->aspect_ratio = aspect_ratio;
     }
 
 };

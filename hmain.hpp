@@ -1,5 +1,7 @@
 #pragma once
 
+
+#define STB_TEXT_HAS_SELECTION(s)   ((s)->select_start != (s)->select_end)
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"

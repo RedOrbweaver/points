@@ -5,6 +5,10 @@ using std::vector;
 
 const char* POPUP_LOAD_FAILED = "Failed to load file";
 const char* POPUP_LOADING = "Loading";
+const char* POPUP_OPEN_FILE = "Open file";
+constexpr float CAMERA_MOVEMENT_RATE_X = 0.01f;
+constexpr float CAMERA_MOVEMENT_RATE_Y = 0.01f;
+constexpr float ZOOM_RATE = 2;
 
 
 GLFWwindow* window;
@@ -18,6 +22,12 @@ bool must_update_vbos = false;
 
 vector<vec3<float>> section_colors = {vec3<float>{255, 0, 0}, vec3<float>{0, 255, 0}, vec3<float>{0, 0, 255}};
 vector<float> sections = {-1, 1.5, 100000};
+
+void OpenFile(std::string path)
+{
+    loading_points.push_back(std::make_shared<PointProcessor>(path));
+}
+
 
 bool IsLoading()
 {
@@ -33,7 +43,7 @@ void HandleMouseScroll(GLFWwindow* window, double xoffset, double yoffset)
 {
     if(IsMouseOverGUI())
         return;
-    camera->AddDistance(yoffset);
+    camera->AddDistance(yoffset * ZOOM_RATE);
 }
 
 void SetCurrentPoints(shared_ptr<PointProcessor> points)
@@ -97,14 +107,104 @@ void Render3D()
     
 }
 
+void RenderToolsWindow()
+{
+    if(ImGui::Begin("Tools", ))
+    {
+
+    }
+    ImGui::End();
+}
+
+void RenderFilesWindow()
+{
+    ImVec2 size_min = {200.0f, 350.0f};
+    // no constraint
+    ImVec2 size_max = {FLT_MAX, FLT_MAX};
+    ImGui::SetNextWindowSizeConstraints(size_min, size_max);
+
+    if(ImGui::Begin("Files"))
+    {
+        if(open_points.size() > 0)
+        {
+            ImGui::Text("Loaded files:");
+            if(ImGui::BeginListBox("##", ImVec2(250, 300)))
+            {
+                std::vector<std::shared_ptr<PointProcessor>> to_delete;
+                static int points_selected = 0;
+                for(int i = 0; i < open_points.size(); i++)
+                {
+                    auto p = open_points[i];
+                    std::string sid = p->GetFileName() + "##" + std::to_string(i);
+                    const bool is_selected = (points_selected == i);
+                    if(ImGui::Selectable(sid.c_str(), is_selected, ImGuiSelectableFlags_AllowOverlap))
+                    {
+                        points_selected = i;
+                    }
+                    ImGui::SameLine(243);
+                    std::string bid = "X##" + std::to_string(i);
+                    if(ImGui::SmallButton(bid.c_str()))
+                    {
+                        to_delete.push_back(p);
+                    }
+                    
+                }
+                ImGui::EndListBox();
+                if(points_selected < open_points.size() && open_points[points_selected] != current_points)
+                    SetCurrentPoints(open_points[points_selected]);
+                for(int i = 0; i < to_delete.size(); i++)
+                {
+                    for(int ii = 0; ii < open_points.size(); ii++)
+                    {
+                        if(open_points[ii] == to_delete[i])
+                            open_points.erase(open_points.begin() + ii);
+                    }
+                    if(to_delete[i] == current_points)
+                        current_points = nullptr;
+                }
+                if(current_points == nullptr && open_points.size() > 0)
+                    SetCurrentPoints(open_points[0]);
+            }
+        }
+        else
+            ImGui::Text("No files");
+        if(ImGui::Button("Open"))
+        {
+            IGFD::FileDialogConfig config;
+            config.path = ".";
+            ImGuiFileDialog::Instance()->OpenDialog(POPUP_OPEN_FILE, "Choose File", ".*", config);
+        }
+        if (ImGuiFileDialog::Instance()->Display(POPUP_OPEN_FILE)) 
+        {
+            if (ImGuiFileDialog::Instance()->IsOk()) 
+            { 
+                std::string filePath = ImGuiFileDialog::Instance()->GetFilePathName();
+                bool isalreadyopen = false;
+                for(auto it : open_points)
+                {
+                    if(it->GetFilePath() == filePath)
+                    {
+                        isalreadyopen = true;
+                        break;
+                    }
+                }
+                if(!isalreadyopen && std::filesystem::is_regular_file(filePath))
+                    OpenFile(filePath);
+                ImGuiFileDialog::Instance()->Close();
+            }
+        }
+    }
+    ImGui::End();
+}
+
 void RenderGUI()
 {
     ImGui::NewFrame();
 
-    
-    ImGui::Text("%f", camera->GetDistance());
-    ImGui::Text("%f", camera->GetPhi());
-    ImGui::Text("%f", camera->GetTheta());
+    // Camera debug info:
+    // ImGui::Text("%f", camera->GetDistance());
+    // ImGui::Text("%f", camera->GetPhi());
+    // ImGui::Text("%f", camera->GetTheta());
 
     bool loading_finished = false;
     if(IsLoading())
@@ -159,12 +259,13 @@ void RenderGUI()
     {
         if(loading_finished)
         {
+            loading_points.clear();
             ImGui::CloseCurrentPopup();
         }
         else
         {
             if(loading_points.size() == 1)
-                ImGui::Text("Loading file: %s", loading_points[0]->GetFileName());
+                ImGui::Text("Loading file: %s", loading_points[0]->GetFileName().c_str());
             else
             {
                 ImGui::Text("Loading %i files", (int)loading_points.size());
@@ -177,6 +278,9 @@ void RenderGUI()
                 it->Unlock();
             }
             loading_state /= loading_points.size();
+            // :)
+            if(loading_state > 0.99)
+                loading_state = 0.99;
             ImGui::ProgressBar(loading_state, ImVec2(0.0f, 0.0f));
         }
         ImGui::EndPopup();
@@ -192,7 +296,7 @@ void RenderGUI()
             ImGui::Text("All files failed to load");
         for(auto it : failed_to_load_points)
         {
-            ImGui::Text("Failed to load file %s:", it->GetFilePath().c_str());
+            ImGui::Text("Failed to load file %s: %s", it->GetFilePath().c_str(), it->GetLoadFailureError().c_str());
         }
         //ImGui::Text("%s", loading_points->GetLoadFailureError());
         ImGui::Separator();
@@ -205,33 +309,17 @@ void RenderGUI()
         ImGui::EndPopup();
     }
 
-    static bool files_open = true;
-    ImGui::Begin("Files", &files_open);
-    {
-        
-    }
-    ImGui::End();
+    RenderFilesWindow();
 
     if(current_points != nullptr && !IsLoading())
-    {
-        static bool tools_open = true;
-        ImGui::Begin("Tools", &tools_open);
-        {
-            
-        }
-        ImGui::End();
-    }
+        RenderToolsWindow();
 
+    // Demo window for figuring out how ImGui works
     ImGui::ShowDemoWindow(nullptr);
     
     ImGui::Render();
 
     
-}
-
-void OpenFile(std::string path)
-{
-    loading_points.push_back(std::make_shared<PointProcessor>(path));
 }
 
 static void glfw_error_callback(int error, const char* description)
@@ -242,7 +330,7 @@ static void glfw_error_callback(int error, const char* description)
 // Main code
 int main(int argc, char** argv)
 {
-
+    printf("Starting points");
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return 1;
@@ -310,9 +398,13 @@ int main(int argc, char** argv)
 #endif
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    OpenFile("./test_data/data_5.txt");
+    OpenFile("./test_data/data_1.txt");
+    OpenFile("./test_data/data_2.txt");
+    OpenFile("./test_data/data_3.txt");
+    OpenFile("./test_data/data_4.txt");
 
-    camera = std::make_shared<OrbitCamera>(60.0f, 0, 100, 16.0/9.0);
+    //Initialize camera with sane defaults;
+    camera = std::make_shared<OrbitCamera>(50.0f, 0, 10000, 16.0/9.0);
     camera->SetDistance(20);    
 
     if(argc > 1)
@@ -339,10 +431,11 @@ int main(int argc, char** argv)
             continue;
         }
 
-        
+        camera->SetAspectRatio(float(display_w)/float(display_h));
+
         if(io.MouseDown[0] && !IsMouseOverGUI())
         {
-            camera->Rotate(io.MouseDelta.x * 0.05f, io.MouseDelta.y * 0.05f);
+            camera->Rotate(io.MouseDelta.x * CAMERA_MOVEMENT_RATE_X, io.MouseDelta.y * CAMERA_MOVEMENT_RATE_Y);
         }
 
         // Start the Dear ImGui frame
