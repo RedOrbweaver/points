@@ -2,6 +2,8 @@
 
 #include "hmain.hpp"
 
+// Handles point processing as well as file loading
+// All heavy operations are done in a separate thread
 class PointProcessor
 {
     protected:
@@ -119,7 +121,7 @@ class PointProcessor
         }
 
         // sort by the Z axis, ascending
-        
+        // also approximates, which probably slows this down quite a bit
         std::sort(points.begin(), points.end(), [&](vec3<float> l, vec3<float> r) {loading_state_compute[2] += 0.1f * 1.0f/float(points.size()); return l.z < r.z;});
         loading_state_compute[2] = 1.0f;
         memory_used = sizeof(points[0]) * points.size();

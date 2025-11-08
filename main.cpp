@@ -203,7 +203,7 @@ void RenderToolsWindow()
                     to_remove = i;
                 }
             }
-            // last section goes out to infinity
+            // last section goes out to infinity, so we ignore it
             if(i != indices.size()-1)
             {
                 float v = sections[i];
@@ -264,7 +264,7 @@ void RenderFilesWindow()
                     {
                         points_selected = i;
                     }
-                    ImGui::SameLine(235);
+                    ImGui::SameLine(232);
                     string bid = "X##" + to_string(i);
                     if(ImGui::SmallButton(bid.c_str()))
                     {
