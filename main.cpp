@@ -297,7 +297,7 @@ void RenderFilesWindow()
             config.path = ".";
             ImGuiFileDialog::Instance()->OpenDialog(POPUP_OPEN_FILE, "Choose File", ".*", config);
         }
-        if (ImGuiFileDialog::Instance()->Display(POPUP_OPEN_FILE)) 
+        if (ImGuiFileDialog::Instance()->Display(POPUP_OPEN_FILE, ImGuiChildFlags_AlwaysAutoResize)) 
         {
             if (ImGuiFileDialog::Instance()->IsOk()) 
             { 
@@ -371,7 +371,7 @@ void RenderLoadingPopups()
             }
         }
     }
-    if(ImGui::BeginPopupModal(POPUP_LOADING))
+    if(ImGui::BeginPopupModal(POPUP_LOADING, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
         if(loading_finished)
         {
@@ -401,7 +401,7 @@ void RenderLoadingPopups()
         }
         ImGui::EndPopup();
     }
-    if(ImGui::BeginPopupModal(POPUP_LOAD_FAILED))
+    if(ImGui::BeginPopupModal(POPUP_LOAD_FAILED, nullptr, ImGuiChildFlags_AlwaysAutoResize))
     {
         assert(failed_to_load_points.size() > 0);
         if(failed_to_load_points.size() == 1)        
