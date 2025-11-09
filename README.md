@@ -15,4 +15,4 @@ Make sure to initialize the submodules!:
 
 Requires glfw3, glew as well as pkg-config.
 For ubuntu run: 
-`sudo apt install build-essential pkg-config libglew-dev liglfw3-dev`
+`sudo apt install build-essential pkg-config libglew-dev libglfw3-dev`
