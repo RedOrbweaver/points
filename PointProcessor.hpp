@@ -4,6 +4,7 @@
 
 // Handles point processing as well as file loading
 // All heavy operations are done in a separate thread
+// Certain functions require using the Lock() and Unlock() functions to ensure thread safety
 class PointProcessor
 {
     protected:

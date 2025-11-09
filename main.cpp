@@ -26,6 +26,7 @@ bool slice_quads_enabled = false;
 float slice_quads_opacity = 0.1f;
 
 
+// default section data
 vector<vec3<float>> section_colors = {vec3<float>{1.0, 0, 0}, vec3<float>{0, 1.0, 0}, vec3<float>{0, 0, 1.0}};
 vector<float> sections = {-1, 1.5, 100000};
 
@@ -33,6 +34,7 @@ vector<float> sections = {-1, 1.5, 100000};
 void SetCurrentPoints(shared_ptr<PointProcessor> points)
 {
     current_points = points;
+    // must upload new data to the GPU
     must_update_vbos = true;
     camera->SetDistance(points->GetFurthestDistanceFromZero() * 2.0f);
 }
@@ -254,15 +256,17 @@ void RenderFilesWindow()
             if(ImGui::BeginListBox("##", ImVec2(250, 300)))
             {
                 vector<std::shared_ptr<PointProcessor>> to_delete;
-                static int points_selected = 0;
+                static int file_selected = 0;
                 for(int i = 0; i < open_points.size(); i++)
                 {
                     auto p = open_points[i];
                     string sid = p->GetFileName() + "##" + to_string(i);
-                    const bool is_selected = (points_selected == i);
+                    
+                    const bool is_selected = (file_selected == i);
+                    // When a selectable is pressed it sets itself as the selected one
                     if(ImGui::Selectable(sid.c_str(), is_selected, ImGuiSelectableFlags_AllowOverlap))
                     {
-                        points_selected = i;
+                        file_selected = i;
                     }
                     ImGui::SameLine(232);
                     string bid = "X##" + to_string(i);
@@ -273,8 +277,8 @@ void RenderFilesWindow()
                     
                 }
                 ImGui::EndListBox();
-                if(points_selected < open_points.size() && open_points[points_selected] != current_points)
-                    SetCurrentPoints(open_points[points_selected]);
+                if(points_selected < open_points.size() && open_points[file_selected] != current_points)
+                    SetCurrentPoints(open_points[file_selected]);
                 for(int i = 0; i < to_delete.size(); i++)
                 {
                     for(int ii = 0; ii < open_points.size(); ii++)
@@ -349,6 +353,7 @@ void RenderLoadingPopups()
             }
             if(completed == loading_points.size())
             {
+                // determine whether any of the files have failed to load and collect them
                 for(auto it : loading_points)
                 {
                     if(!it->HasFailedToLoad())
@@ -455,7 +460,6 @@ static void glfw_error_callback(int error, const char* description)
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
-// Main code
 int main(int argc, char** argv)
 {
     printf("Starting points");
@@ -575,9 +579,11 @@ int main(int argc, char** argv)
         RenderGUI();
 
 
-        
+        // Render with opengl
         glViewport(0, 0, display_w, display_h);
         Render3D();
+
+        // Now render the gui over the scene
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
 

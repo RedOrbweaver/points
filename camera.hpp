@@ -1,8 +1,8 @@
 #pragma once
 
 static constexpr glm::vec3 up = glm::vec3(0.f, 1.f, 0.f);
-static constexpr glm::vec3 target = glm::vec3(0.f, 0.f, 0.f);
 
+// generic orbit camera
 class OrbitCamera
 {
 private:
