@@ -36,7 +36,7 @@ void SetCurrentPoints(shared_ptr<PointProcessor> points)
     current_points = points;
     // must upload new data to the GPU
     must_update_vbos = true;
-    camera->SetDistance(points->GetFurthestDistanceFromZero() * 2.0f);
+    camera->SetDistance(points->GetFurthestDistanceFromZero() * 3.0f);
 }
 
 void Render3D()
@@ -195,12 +195,14 @@ void RenderToolsWindow()
             ImGui::Text("(%i) points: %u", i, (indices[i] == 0) ? 0 : uint(indices[i]-section_pos));
             ImGui::SameLine();
             vec3<float> color = section_colors[i];
-            ImGui::ColorEdit3((string("Color##") + to_string(i)).c_str(), color.data);
+            string sid = "Color##" + to_string(i);
+            ImGui::ColorEdit3(sid.c_str(), color.data);
             section_colors[i] = color;
             if(sections.size() > 2)
             {
                 ImGui::SameLine();
-                if(ImGui::SmallButton((string("Remove##") + to_string(i)).c_str()))
+                sid = "Remove##" + to_string(i);
+                if(ImGui::SmallButton(sid.c_str()))
                 {
                     to_remove = i;
                 }
@@ -212,7 +214,8 @@ void RenderToolsWindow()
                 // first element can go into the negatives up to the point with the lowest z-axis
                 float lower_limit = (i == 0) ? cp->GetBoundingBoxLow().z : 0.0f;
                 float upper_limit = cp->GetBoundingBoxHigh().z;
-                ImGui::SliderFloat((string("Length##") + to_string(i)).c_str(), &v, 
+                std::string sid = "Length##" + to_string(i);
+                ImGui::SliderFloat(sid.c_str(), &v, 
                     lower_limit, upper_limit);
                 if(v != sections[i])
                 {
@@ -277,7 +280,7 @@ void RenderFilesWindow()
                     
                 }
                 ImGui::EndListBox();
-                if(points_selected < open_points.size() && open_points[file_selected] != current_points)
+                if(file_selected < open_points.size() && open_points[file_selected] != current_points)
                     SetCurrentPoints(open_points[file_selected]);
                 for(int i = 0; i < to_delete.size(); i++)
                 {
