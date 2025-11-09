@@ -11,8 +11,12 @@ Files can also be loaded from the "Files" menu.
 
 # Building:
 Make sure to initialize the submodules!:
+
 `git submodule init; git submodule update`
 
 Requires glfw3, glew as well as pkg-config.
 For ubuntu run: 
+
 `sudo apt install build-essential pkg-config libglew-dev libglfw3-dev`
+
+To build simply run `make`
