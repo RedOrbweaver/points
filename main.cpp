@@ -297,7 +297,7 @@ void RenderFilesWindow()
             config.path = ".";
             ImGuiFileDialog::Instance()->OpenDialog(POPUP_OPEN_FILE, "Choose File", ".*", config);
         }
-        if (ImGuiFileDialog::Instance()->Display(POPUP_OPEN_FILE, ImGuiChildFlags_AlwaysAutoResize)) 
+        if (ImGuiFileDialog::Instance()->Display(POPUP_OPEN_FILE, 32, {500.0f, 500.0f})) 
         {
             if (ImGuiFileDialog::Instance()->IsOk()) 
             { 
