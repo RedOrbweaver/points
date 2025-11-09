@@ -198,7 +198,7 @@ void RenderToolsWindow()
             string sid = "Color##" + to_string(i);
             ImGui::ColorEdit3(sid.c_str(), color.data);
             section_colors[i] = color;
-            if(sections.size() > 2)
+            if(sections.size() > 2 && i > 0)
             {
                 ImGui::SameLine();
                 sid = "Remove##" + to_string(i);
